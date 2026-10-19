@@ -1,8 +1,19 @@
 const activities = [
-    "hadir",
-    "hаdir",
-    "𝚑𝚊𝚍𝚒𝚛",
-    "𝐡adir"
+    "Mengerjakan tugas dari pembimbing industri",
+    "Membantu pekerjaan di tempat PKL",
+    "Mengerjakan proyek pengembangan sistem",
+    "Membantu pengelolaan data perusahaan",
+    "Melakukan maintenance perangkat komputer",
+    "Mengerjakan desain dan dokumentasi",
+    "Membantu instalasi dan konfigurasi sistem",
+    "Mengerjakan tugas administrasi teknis",
+    "Melakukan pengujian aplikasi",
+    "Membantu pengembangan fitur website",
+    "Mengerjakan laporan harian PKL",
+    "Membantu troubleshooting jaringan",
+    "Mengerjakan database management",
+    "Membantu pembuatan konten digital",
+    "Melakukan analisis kebutuhan sistem"
 ];
 
 function getRandomActivity() {

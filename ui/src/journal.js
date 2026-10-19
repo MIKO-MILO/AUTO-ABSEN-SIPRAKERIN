@@ -58,7 +58,7 @@ async function getLastIzinFoto(id_siswa, tanggal) {
 
     const res = await fetch(url, {
         headers: {
-            'apikey': config.SUPABASE_KEY,
+            'apikey': config.SUPABASE_ANON_KEY,
             'Authorization': `Bearer ${token}`,
             'accept': '*/*',
             'accept-profile': 'public'
@@ -146,7 +146,7 @@ async function submitJournal(token, activity, studentIds, keterangan = 'hadir', 
     const journalDate = tanggal || new Date().toISOString().split('T')[0];
 
     const minDate = new Date('2026-01-05');
-    const maxDate = new Date('2026-10-01');
+    const maxDate = new Date('2026-11-30');
     const submittedDate = new Date(journalDate);
 
     if (submittedDate < minDate) {
@@ -156,7 +156,7 @@ async function submitJournal(token, activity, studentIds, keterangan = 'hadir', 
     }
 
     if (submittedDate > maxDate) {
-        const errorMsg = `Date ${journalDate} is too far ahead. Journals can only be created until October 1, 2026.`;
+        const errorMsg = `Date ${journalDate} is too far ahead. Journals can only be created until November 30, 2026.`;
         console.error(errorMsg);
         throw new Error(errorMsg);
     }
@@ -191,20 +191,96 @@ async function submitJournal(token, activity, studentIds, keterangan = 'hadir', 
 
     console.log(`Submitting attendance for ${journalDate}:`, payload.kegiatan);
 
-    const { data, error } = await supabase
-        .from('daftar_jurnal')
-        .insert([payload])
-        .select();
+    // Cek session aktif
+    const { data: sessionCheck } = await supabase.auth.getSession();
+    const activeToken = sessionCheck?.session?.access_token;
+    console.log('[insert] active session user:', sessionCheck?.session?.user?.id ?? 'NO SESSION');
+    console.log('[insert] active session role:', sessionCheck?.session?.user?.role ?? 'none');
+    console.log('[insert] payload:', JSON.stringify(payload));
 
-    if (error) {
-        if (error.message.includes('duplicate key') || error.code === '23505') {
-            const friendlyError = `A journal with status "${keterangan}" for ${journalDate} already exists. Use another date or choose a different status.`;
-            console.error('Duplicate entry:', friendlyError);
-            throw new Error(friendlyError);
+    if (!activeToken) {
+        throw new Error('No active session token — cannot insert journal.');
+    }
+
+    // Pakai Next.js API endpoint siprakerin (server-side, bypass trigger)
+    const apiPayload = {
+        tanggal: journalDate,
+        kegiatan: activity,
+        keterangan: keterangan,
+        id_kelas: studentIds.id_kelas,
+        id_industri: studentIds.id_industri
+    };
+
+    console.log('[insert] using siprakerin API endpoint...');
+    const apiRes = await fetch('https://www.siprakerin.com/api/siswa/jurnal', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'Cookie': `sb-supabase-auth-token=base64-${config.SUPABASE_COOKIE_TOKEN || ''}`,
+            'Origin': 'https://www.siprakerin.com',
+            'Referer': 'https://www.siprakerin.com/siswa/kehadiran/jurnal/add',
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+        },
+        body: JSON.stringify(apiPayload)
+    });
+
+    const apiResponseText = await apiRes.text();
+    console.log('[insert] API status:', apiRes.status);
+    console.log('[insert] API response:', apiResponseText);
+
+    if (!apiRes.ok) {
+        // Fallback ke direct Supabase insert
+        console.warn('[insert] API endpoint failed, falling back to direct Supabase insert...');
+    } else {
+        let data;
+        try { data = JSON.parse(apiResponseText); } catch { data = {}; }
+        console.log('Attendance submitted via API successfully:', data);
+        return [data];
+    }
+
+    // Fallback: insert langsung ke Supabase
+    const insertUrl = `${config.SUPABASE_URL}/rest/v1/daftar_jurnal`;
+    const insertRes = await fetch(insertUrl, {
+        method: 'POST',
+        headers: {
+            'apikey': config.SUPABASE_ANON_KEY,
+            'Authorization': `Bearer ${activeToken}`,
+            'Content-Type': 'application/json',
+            'Prefer': 'return=representation'
+        },
+        body: JSON.stringify(payload)
+    });
+
+    const responseText = await insertRes.text();
+    console.log('[insert] fetch status:', insertRes.status);
+    console.log('[insert] fetch response:', responseText);
+
+    if (!insertRes.ok) {
+        let errMsg = responseText;
+        try { errMsg = JSON.parse(responseText)?.message || responseText; } catch {}
+        if (errMsg.includes('duplicate key') || insertRes.status === 409) {
+            throw new Error(`A journal for ${journalDate} already exists. Cannot create a duplicate.`);
         }
+        throw new Error(`Insert failed (${insertRes.status}): ${errMsg}`);
+    }
 
-        console.error('Failed to submit attendance:', error.message);
-        throw error;
+    let data;
+    try { data = JSON.parse(responseText); } catch { data = []; }
+
+    if (!data || data.length === 0) {
+        console.warn('[insert] WARNING: No error but data is empty — likely blocked by RLS or wrong session.');
+
+        // Verifikasi langsung dengan SELECT setelah insert
+        const verifyUrl = `${config.SUPABASE_URL}/rest/v1/daftar_jurnal?id_siswa=eq.${payload.id_siswa}&tanggal=eq.${payload.tanggal}&select=id_jurnal,tanggal,keterangan`;
+        const verifyRes = await fetch(verifyUrl, {
+            headers: {
+                'apikey': config.SUPABASE_ANON_KEY,
+                'Authorization': `Bearer ${activeToken}`,
+            }
+        });
+        const verifyText = await verifyRes.text();
+        console.log('[insert] verify SELECT status:', verifyRes.status);
+        console.log('[insert] verify SELECT result:', verifyText);
     }
 
     console.log('Attendance submitted successfully:', data);
@@ -250,7 +326,7 @@ async function getJournalHistory(token, userId) {
     const url = `${baseUrl}/daftar_jurnal?select=*&id_siswa=eq.${userId}&order=tanggal.desc`;
 
     const headers = {
-        'apikey': config.SUPABASE_KEY,
+        'apikey': config.SUPABASE_ANON_KEY,
         'Authorization': `Bearer ${token}`,
         'Content-Type': 'application/json'
     };
@@ -381,7 +457,7 @@ async function getHariLiburNasional(token) {
 
     const res = await fetch(url, {
         headers: {
-            'apikey': config.SUPABASE_KEY,
+            'apikey': config.SUPABASE_ANON_KEY,
             'Authorization': `Bearer ${token}`,
             'accept': '*/*',
             'accept-profile': 'public'

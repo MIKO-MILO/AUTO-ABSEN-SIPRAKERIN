@@ -2,7 +2,7 @@ const express = require('express');
 const bodyParser = require('body-parser');
 const multer = require('multer');
 const path = require('path');
-const { login } = require('./src/auth');
+const { login, supabase } = require('./src/auth');
 const {
     getStudentDetails, submitJournal, getJournalHistory, deleteJournal,
     updateJournal, checkKemarinIzin, getLastIzinFoto, getYesterdayDate,
@@ -100,6 +100,13 @@ async function startServer() {
 
         if (sessionDefaults.id_kelas && sessionDefaults.id_industri) {
             addLog('SUCCESS', 'Student details retrieved successfully.');
+            // Log alpha dates untuk debug
+            try {
+                const alphaDates = await getAlphaDates(sessionDefaults.id_siswa);
+                addLog('INFO', `Alpha dates (${alphaDates.length}): ${alphaDates.join(', ')}`);
+            } catch(e) {
+                addLog('WARN', `Could not fetch alpha dates: ${e.message}`);
+            }
             addLog('READY', 'System ready with full credentials.');
         } else {
             addLog('WARN', 'System ready but some credentials are MISSING.');
@@ -118,9 +125,11 @@ async function startServer() {
 }
 
 // --- MIDDLEWARE & ROUTES ---
+app.set('views', path.join(__dirname, 'views'));
 app.set('view engine', 'ejs');
 app.use(bodyParser.urlencoded({ extended: true }));
-app.use(express.static('public'));
+app.use(express.json());
+app.use(express.static(path.join(__dirname, 'public')));
 
 app.get('/api/logs', (req, res) => res.json(systemLogs));
 
@@ -128,9 +137,13 @@ app.get('/api/calendar', async (req, res) => {
     try {
         addLog('FETCH', 'Preparing calendar statistics data...');
 
+        // Ambil token aktif dari session
+        const { data: sessionData } = await supabase.auth.getSession();
+        const activeToken = sessionData?.session?.access_token || sessionToken;
+
         const [journals, liburNasional] = await Promise.all([
-            getJournalHistory(sessionToken, sessionDefaults.id_siswa).catch(() => []),
-            getHariLiburNasional(sessionToken)
+            getJournalHistory(activeToken, sessionDefaults.id_siswa).catch(() => []),
+            getHariLiburNasional(activeToken)
         ]);
 
         let alphaDates = [];
@@ -170,7 +183,11 @@ app.get('/api/calendar', async (req, res) => {
 //ambil SEMUA jurnal — client handle paginasi (10 per page)
 app.get('/api/journals', async (req, res) => {
     try {
-        const freshJournals = await getJournalHistory(sessionToken, sessionDefaults.id_siswa);
+        // Ambil token aktif dari session
+        const { data: sessionData } = await supabase.auth.getSession();
+        const activeToken = sessionData?.session?.access_token || sessionToken;
+
+        const freshJournals = await getJournalHistory(activeToken, sessionDefaults.id_siswa);
 
         const allJournals = freshJournals.map(j => ({
             id: j.id_jurnal,
@@ -268,7 +285,7 @@ app.post('/', upload.single('foto_izin'), async (req, res) => {
     }
 
     const minDate = new Date('2026-01-05');
-    const maxDate = new Date('2026-10-01');
+    const maxDate = new Date('2026-11-30');
     const submittedDate = new Date(tanggal);
 
     if (submittedDate < minDate) {

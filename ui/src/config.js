@@ -8,9 +8,9 @@ dotenv.config({ path: path.resolve(__dirname, '../../.env') });
 
 const requiredEnv = [
     'SUPABASE_URL',
-    'SUPABASE_KEY',
-    'USER_EMAIL',
-    'USER_PASSWORD'
+    'SUPABASE_ANON_KEY',
+    'EMAIL',
+    'PASSWORD'
 ];
 
 const config = {};
@@ -26,5 +26,8 @@ requiredEnv.forEach((key) => {
 config.ID_SISWA = process.env.ID_SISWA;
 config.ID_KELAS = process.env.ID_KELAS;
 config.ID_INDUSTRI = process.env.ID_INDUSTRI;
+config.SUPABASE_ACCESS_TOKEN = process.env.SUPABASE_ACCESS_TOKEN || null;
+config.SUPABASE_REFRESH_TOKEN = process.env.SUPABASE_REFRESH_TOKEN || null;
+config.SUPABASE_COOKIE_TOKEN = process.env.SUPABASE_COOKIE_TOKEN || null;
 
 module.exports = config;

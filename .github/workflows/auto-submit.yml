@@ -1,0 +1,36 @@
+name: Auto Submit Jurnal Harian
+
+on:
+  schedule:
+    # Setiap hari jam 00:30 UTC = 07:30 WIB
+    - cron: '30 0 * * 1-5'
+  workflow_dispatch: # Bisa trigger manual dari GitHub Actions tab
+
+jobs:
+  submit-jurnal:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: ui/package-lock.json
+
+      - name: Install dependencies
+        run: npm install
+        working-directory: ui
+
+      - name: Run auto-submit
+        working-directory: ui
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+          EMAIL: ${{ secrets.EMAIL }}
+          PASSWORD: ${{ secrets.PASSWORD }}
+        run: node auto-submit.js

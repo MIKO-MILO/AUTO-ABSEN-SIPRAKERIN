@@ -47,8 +47,8 @@ Create a `.env` file in the **root folder** (right next to the `ui` folder), the
 ```env
 SUPABASE_URL=https://your-project.supabase.co
 SUPABASE_KEY=your_anon_key_here
-USER_EMAIL=your_email@example.com
-USER_PASSWORD=your_password_here
+EMAIL=your_email@example.com
+PASSWORD=your_password_here
 ```
 
 There's an `.env.example` you can copy and edit.
