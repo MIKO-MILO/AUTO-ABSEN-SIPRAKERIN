@@ -76,5 +76,3 @@ Buka [siprakerin.com](https://siprakerin.com) → login → cek jurnal harian ka
 - Jurnal hari itu sudah ada sebelumnya — tidak masalah
 
 ---
-
-> Made with ❤️ by [Arga-12](https://github.com/Arga-12)
